@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Popup for Bookmark Sync</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+  <a href="https://github.com/dodying/Bookmark-Sync/README.md">Help</a>
+  <div>
+    GitHub Token:
+    <input type="text" name="token">
+    <br> Description:
+    <input type="text" name="description" placeholder="Bookmark Sync">
+  </div>
+  <div style="display: flex;">
+    <button class="button" name="upload">Upload</button>
+    <button class="button" name="download">Download</button>
+    <button class="button" name="history">History</button>
+    <button class="button" name="sync">Sync</button>
+  </div>
+  <div id="historyDiv"></div>
+
+  <script src="./js/options.js"></script>
+  <script src="./js/common.js"></script>
+</body>
+</html>

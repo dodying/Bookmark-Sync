@@ -1,0 +1,10 @@
+{
+  "extName":
+  {
+    "message": "Bookmark Sync"
+  },
+  "extDesc":
+  {
+    "message": "Sync Bookmarks through Github Gist"
+  }
+}

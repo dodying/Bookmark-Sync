@@ -1,0 +1,10 @@
+{
+  "extName":
+  {
+    "message": "Bookmark Sync"
+  },
+  "extDesc":
+  {
+    "message": "通过 Github Gist 同步书签"
+  }
+}

@@ -1,0 +1,4 @@
+.web-extension-id
+web-ext-artifacts
+*.crx
+*.pem

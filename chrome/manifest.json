@@ -1,6 +1,6 @@
 {
   "manifest_version": 2,
-  "homepage_url": "http://path/to/homepage",
+  "homepage_url": "https://github.com/dodying/Bookmark-Sync",
   "name": "__MSG_extName__",
   "version": "0.0.1",
   "default_locale": "en",
@@ -23,7 +23,10 @@
     ],
     "persistent": false
   },
-  "options_page": "options.html",
+  "options_ui": {
+    "open_in_tab": true,
+    "page": "options.html"
+  },
   "permissions": [
     "bookmarks"
   ]

@@ -2,6 +2,18 @@ const token = window.localStorage.token
 const description = window.localStorage.description || 'Bookmark Sync'
 var monitorBookmark = true
 
+let folder = {
+  '1': '1',
+  '2': '2',
+  'toolbar_____': '1',
+  'unfiled_____': '2',
+  'menu________': '2',
+  'mobile______': '2',
+  'tags________': '2'
+}
+
+let folderPreserve = ['root________']
+
 const browserActionReset = () => {
   chrome.browserAction.setTitle({
     title: chrome.i18n.getMessage('extDesc')
@@ -62,16 +74,20 @@ const getBookmark = () => {
 const emptyBookmark = async () => {
   let bm = await getBookmark()
   for (let i = 0; i < bm.length; i++) {
-    if (bm[i].parentId === '1' || bm[i].parentId === '2') {
+    if (!folderPreserve.includes(bm[i].parentId)) {
       await new Promise(resolve => {
-        if (bm[i].url) {
-          chrome.bookmarks.remove(bm[i].id, result => {
-            resolve()
-          })
-        } else {
-          chrome.bookmarks.removeTree(bm[i].id, result => {
-            resolve()
-          })
+        try {
+          if (bm[i].url) {
+            chrome.bookmarks.remove(bm[i].id, result => {
+              resolve()
+            })
+          } else {
+            chrome.bookmarks.removeTree(bm[i].id, result => {
+              resolve()
+            })
+          }
+        } catch (error) {
+          resolve()
         }
       })
     }
@@ -79,17 +95,20 @@ const emptyBookmark = async () => {
 }
 
 const setBookmark = async bm => {
-  let folder = {
-    '1': '1',
-    '2': '2'
-  }
   for (let i = 0; i < bm.length; i++) {
+    if (bm[i].parentId === 'root________') continue
+
     // 移除不接受的属性: id
     let id = bm[i].id
     delete bm[i].id
 
     // 替换真正的parentId
+    console.log(bm[i].parentId, folder[bm[i].parentId])
     bm[i].parentId = folder[bm[i].parentId]
+
+    if (bm[i].url && bm[i].url.match(/^about:/)) {
+      bm[i].url = bm[i].url.replace(/^about:/, 'chrome:')
+    }
 
     await new Promise(resolve => {
       chrome.bookmarks.create(bm[i], result => {

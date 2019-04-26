@@ -7,7 +7,3 @@ document.body.addEventListener('keyup', e => {
     window.localStorage[e.target.name] = e.target.value
   }
 })
-
-document.addEventListener('close', () => [
-  browser.runtime.reload()
-])

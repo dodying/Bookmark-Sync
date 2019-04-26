@@ -1,5 +1,5 @@
-const token = window.localStorage.token
-const description = window.localStorage.description || 'Bookmark Sync'
+var token
+var description
 var monitorBookmark = true
 
 let folder = {
@@ -190,6 +190,8 @@ const onBookmarkChanged = (id, info) => {
 }
 
 browser.runtime.onMessage.addListener(async message => {
+  token = window.localStorage.token
+  description = window.localStorage.description || 'Bookmark Sync'
   monitorBookmark = false
   let messageNew = {}
   if (message.type === 'upload') {

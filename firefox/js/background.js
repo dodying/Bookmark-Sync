@@ -3,14 +3,14 @@ var description
 var monitorBookmark = true
 
 let folder = {
-  '1': 'toolbar_____',
-  '2': 'unfiled_____',
+  '1': 'toolbar_____', // 书签工具栏
+  '2': 'unfiled_____', // 其他书签
   'root________': 'root________',
-  'toolbar_____': 'toolbar_____',
-  'unfiled_____': 'unfiled_____',
-  'menu________': 'menu________',
-  'mobile______': 'mobile______',
-  'tags________': 'tags________'
+  'toolbar_____': 'toolbar_____', // 书签工具栏
+  'unfiled_____': 'unfiled_____', // 其他书签
+  'menu________': 'menu________', // 书签菜单
+  'mobile______': 'mobile______', // 移动书签
+  'tags________': 'tags________' // 标签
 }
 
 let folderPreserve = ['root________']
@@ -55,6 +55,25 @@ const browserActionSet = (info = {}) => {
 
 const getBookmark = async () => {
   let tree = await browser.bookmarks.search({})
+  tree = tree.map(i => {
+    let order = []
+    let _this = i
+    while (true) {
+      order.unshift(_this.index)
+      if (folderPreserve.includes(_this.parentId)) break
+      _this = tree.filter(i => i.id === _this.parentId)[0]
+    }
+    i.order = order
+    return i
+  }).sort((a, b) => {
+    ;[a, b] = [a.order, b.order]
+    for (let i = 0; i < Math.min(a.length, b.length); i++) {
+      if (a[i] > b[i]) return 1
+      if (a[i] < b[i]) return -1
+    }
+    return a.length > b.length ? 1 : -1
+  })
+  console.log(tree)
   let arr = []
   for (let i = 0; i < tree.length; i++) {
     let json = {

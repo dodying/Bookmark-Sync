@@ -1,15 +1,15 @@
-var token = window.localStorage.token
-var description = window.localStorage.description || 'Bookmark Sync'
+var token
+var description
 var monitorBookmark = true
 
 let folder = {
-  '1': '1',
-  '2': '2',
-  'toolbar_____': '1',
-  'unfiled_____': '2',
-  'menu________': '2',
-  'mobile______': '2',
-  'tags________': '2'
+  '1': '1', // 书签工具栏
+  '2': '2', // 其他书签
+  'toolbar_____': '1', // 书签工具栏
+  'unfiled_____': '2', // 其他书签
+  'menu________': '2', // 书签菜单
+  'mobile______': '2', // 移动书签
+  'tags________': '2' // 标签
 }
 
 let folderPreserve = ['root________']
@@ -95,6 +95,30 @@ const emptyBookmark = async () => {
 }
 
 const setBookmark = async bm => {
+  if (navigator.userAgent.match(/Vivaldi/)) { // Vivaldi没有"其他书签"
+    await new Promise(resolve => {
+      chrome.bookmarks.create({
+        parentId: '1',
+        title: chrome.i18n.getMessage('otherBookmarks')
+      }, result => {
+        folder['2'] = result.id
+        folder['unfiled_____'] = result.id
+        resolve()
+      })
+    })
+  }
+  for (let i of ['menu', 'mobile', 'tags']) {
+    await new Promise(resolve => {
+      chrome.bookmarks.create({
+        parentId: folder['2'],
+        title: chrome.i18n.getMessage(i + 'Bookmarks')
+      }, result => {
+        folder[i + '________'] = result.id
+        resolve()
+      })
+    })
+  }
+
   for (let i = 0; i < bm.length; i++) {
     if (bm[i].parentId === 'root________') continue
 

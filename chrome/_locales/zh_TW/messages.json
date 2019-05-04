@@ -1,10 +1,20 @@
 {
-  "extName":
-  {
+  "extName": {
     "message": "Bookmark Sync"
   },
-  "extDesc":
-  {
+  "extDesc": {
     "message": "通過 Github Gist 同步書籤"
+  },
+  "otherBookmarks": {
+    "message": "其他書籤"
+  },
+  "menuBookmarks": {
+    "message": "來自Firefox的書籤菜單"
+  },
+  "mobileBookmarks": {
+    "message": "來自Firefox的移動菜單"
+  },
+  "tagsBookmarks": {
+    "message": "來自Firefox的標籤"
   }
 }

@@ -1,10 +1,20 @@
 {
-  "extName":
-  {
+  "extName": {
     "message": "Bookmark Sync"
   },
-  "extDesc":
-  {
+  "extDesc": {
     "message": "Sync Bookmarks through Github Gist"
+  },
+  "otherBookmarks": {
+    "message": "Other Bookmarks"
+  },
+  "menuBookmarks": {
+    "message": "Menu Bookmarks From Firefox"
+  },
+  "mobileBookmarks": {
+    "message": "Mobile Bookmarks From Firefox"
+  },
+  "tagsBookmarks": {
+    "message": "Tags From Firefox"
   }
 }

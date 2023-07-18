@@ -104,6 +104,29 @@ const emptyBookmark = async () => {
 }
 
 const setBookmark = async bm => {
+  if (navigator.userAgent.match(/Vivaldi/)) { // Vivaldi没有"其他书签"
+    await new Promise(resolve => {
+      chrome.bookmarks.create({
+        parentId: '1',
+        title: chrome.i18n.getMessage('otherBookmarks')
+      }, result => {
+        folder['2'] = result.id
+        folder['unfiled_____'] = result.id
+        resolve()
+      })
+    })
+  }
+  for (let i of ['menu', 'mobile', 'tags']) {
+    await new Promise(resolve => {
+      chrome.bookmarks.create({
+        parentId: folder['2'],
+        title: chrome.i18n.getMessage(i + 'Bookmarks')
+      }, result => {
+        folder[i + '________'] = result.id
+        resolve()
+      })
+    })
+  }
   for (let i = 0; i < bm.length; i++) {
     if (bm[i].parentId === 'root________') continue
 
@@ -114,9 +137,7 @@ const setBookmark = async bm => {
     // 替换真正的parentId
     bm[i].parentId = folder[bm[i].parentId]
 
-    if (bm[i].url && bm[i].url.match(/^chrome:/)) {
-      bm[i].url = bm[i].url.replace(/^chrome:/, 'about:')
-    }
+    bm[i].url = fixPlatformUrl(bm[i].url)
 
     if (bm[i].url === 'data:') {
       bm[i].type = 'separator'
@@ -125,6 +146,13 @@ const setBookmark = async bm => {
     let result = await browser.bookmarks.create(bm[i])
     if (!bm[i].url) folder[id] = result.id
   }
+}
+
+const fixPlatformUrl = url => {
+    if (url && url.match(/^chrome:/)) {
+      return url.replace(/^chrome:/, 'about:')
+    }
+    return url;
 }
 
 const getGistList = async () => {

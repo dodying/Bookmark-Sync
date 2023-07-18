@@ -10,6 +10,6 @@ document.querySelector("[name=save]").addEventListener("click", async function()
 });
 
 browser.storage.local.get(["token", "gistId"]).then(function(result) {
-  document.querySelector("[name=token]").value = result.token;
-  document.querySelector("[name=gistId]").value = result.gistId;
+  document.querySelector("[name=token]").value = result.token || "";
+  document.querySelector("[name=gistId]").value = result.gistId || "";
 });

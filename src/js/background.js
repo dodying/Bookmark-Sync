@@ -42,7 +42,7 @@ async function sync() {
 }
 
 async function _sync() {
-  let {token, bookmarkData, gistId} = await browser.storage.local.get(['token', 'bookmarkData', 'gistId']);
+  let {token, lastUpdate, gistId} = await browser.storage.local.get(['token', 'lastUpdate', 'gistId']);
   if (!token) {
     throw new Error("You are not logged in");
   }
@@ -61,13 +61,45 @@ async function _sync() {
     throw new Error("Gist content is too large");
   }
   const remoteData = r.files['bookmark.json'] ? JSON.parse(r.files['bookmark.json'].content) : null;
-  if (remoteData && bookmarkData && remoteData.lastUpdate > bookmarkData.lastUpdate || remoteData && !bookmarkData) {
-    // mergeData(bookmarkData, remoteData);
-    await browser.storage.local.set({bookmarkData: remoteData});
+  if (remoteData && (remoteData.lastUpdate > lastUpdate || !lastUpdate)) {
     await patchBookmark(remoteData);
-  } else if (!remoteData || bookmarkData.lastUpdate > remoteData.lastUpdate) {
-    await patchGist(bookmarkData, token, gistId);
+    await browser.storage.local.set({lastUpdate: remoteData.lastUpdate});
+  } else if (!remoteData || lastUpdate > remoteData.lastUpdate) {
+    if (!lastUpdate) {
+      lastUpdate = Date.now();
+      await browser.storage.local.set({lastUpdate});
+    }
+    await patchGist(await getBookmarkData(lastUpdate), token, gistId);
   }
+}
+
+async function getBookmarkData(lastUpdate) {
+  const data = {
+    lastUpdate,
+  };
+  for (const key in builtinIds) {
+    const parentId = builtinIds[key][USER_AGENT];
+    if (!parentId) continue;
+    const bookmarks = await browser.bookmarks.getSubTree(parentId);
+    data[key] = bookmarks[0].children.map(cleanBookmark);
+  }
+  return data;
+}
+
+function cleanBookmark(bookmark) {
+  const b = {
+    type: getBookmarkType(bookmark),
+  };
+  if (b.type !== "separator") {
+    b.title = bookmark.title;
+  }
+  if (b.type === "bookmark") {
+    b.url = bookmark.url;
+  }
+  if (b.type === "folder") {
+    b.children = (bookmark.children || []).map(cleanBookmark);
+  }
+  return b;
 }
 
 async function patchGist(data, token, gistId) {
@@ -80,7 +112,7 @@ async function patchGist(data, token, gistId) {
     body: JSON.stringify({
       files: {
         'bookmark.json': {
-          content: JSON.stringify(data)
+          content: JSON.stringify(data, null, 2)
         }
       }
     })
@@ -92,11 +124,12 @@ async function patchBookmark(remote) {
     const parentId = builtinIds[baseKey][USER_AGENT];
     if (!parentId) continue;
     const localBookmarks = await browser.bookmarks.getSubTree(parentId);
-    await patchBookmarkFolder(localBookmarks, remote[baseKey], parentId);
+    await patchBookmarkFolder(localBookmarks[0].children, remote[baseKey], parentId);
   }
 }
 
 function isSameBookmark(a, b) {
+  if (!a || !b) return false;
   if (getBookmarkType(a) !== getBookmarkType(b)) return false;
   if (a.title !== b.title) return false;
   if (a.url !== b.url) return false;
@@ -105,7 +138,7 @@ function isSameBookmark(a, b) {
 
 function getBookmarkType(bookmark) {
   if (bookmark.type) return bookmark.type;
-  if (bookmark.children) return 'folder';
+  if (bookmark.children || bookmark.url == null) return 'folder';
   if (bookmark.title.match(/^-+$/)) return 'separator';
   return 'bookmark';
 }
@@ -133,7 +166,7 @@ async function patchBookmarkFolder(local, remote, parentId) {
       });
       j++;
       if (remote[j].children) {
-        await patchBookmarkFolder(r.children, remote[j].children, r.id);
+        await patchBookmarkFolder(r.children || [], remote[j].children, r.id);
       }
       continue;
     }
@@ -167,7 +200,11 @@ browser.storage.onChanged.addListener(changes => {
   }
 });
 
-function onBookmarkChanged() {
+async function onBookmarkChanged() {
+  // FIXME: need a more reliable way to determine if the user is editing bookmarks
+  if (!running) {
+    await browser.storage.local.set({lastUpdate: Date.now()});
+  }
   scheduleSync();
 }
 

@@ -7,7 +7,8 @@ Inspired by [shanalikhan/code-settings-sync](https://github.com/shanalikhan/code
 ### Usage
 
 1. Cteate a [New personal access token](https://github.com/settings/tokens/new), and add `gist` in scope. [Like this](https://github.com/shanalikhan/code-settings-sync#steps-to-get-a-personal-access-token-from-github)
-2. Put in the token in option page
+2. Create a [new gist](https://gist.github.com/) with a file named `bookmark.json` and the content `null`.
+3. Put in the token and gist ID in the option page.
 
 ### Usage
 

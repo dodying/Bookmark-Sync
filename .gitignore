@@ -2,3 +2,4 @@
 web-ext-artifacts
 *.crx
 *.pem
+node_modules

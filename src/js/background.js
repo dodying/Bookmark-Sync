@@ -1,304 +1,203 @@
-var token
-var description
-var monitorBookmark = true
+/* eslint-env webextensions */
+const USER_AGENT = navigator.userAgent.match(/Firefox/) ? "firefox" : "chrome";
 
-let folder = {
-  '1': 'toolbar_____', // 书签工具栏
-  '2': 'unfiled_____', // 其他书签
-  'root________': 'root________',
-  'toolbar_____': 'toolbar_____', // 书签工具栏
-  'unfiled_____': 'unfiled_____', // 其他书签
-  'menu________': 'menu________', // 书签菜单
-  'mobile______': 'mobile______', // 移动书签
-  'tags________': 'tags________' // 标签
-}
-
-let folderPreserve = ['root________']
-
-const browserActionReset = () => {
-  browser.browserAction.setTitle({
-    title: browser.i18n.getMessage('extDesc')
-  })
-  browser.browserAction.setIcon({
-    path: 'images/logo-16.png'
-  })
-  browser.browserAction.setBadgeText({
-    text: ''
-  })
-  browser.browserAction.setBadgeBackgroundColor({
-    color: 'blue'
-  })
-}
-
-const browserActionSet = (info = {}) => {
-  if (info.title) {
-    browser.browserAction.setTitle({
-      title: browser.i18n.getMessage(info.title)
-    })
-  }
-  if (info.icon) {
-    browser.browserAction.setIcon({
-      path: info.icon
-    })
-  }
-  if (info.text) {
-    browser.browserAction.setBadgeText({
-      text: info.text
-    })
-  }
-  if (info.color) {
-    browser.browserAction.setBadgeBackgroundColor({
-      color: info.color
-    })
+const builtinIds = {
+  // root: {
+  //   chrome: "0",
+  //   firefox: "root________"
+  // },
+  toolbar: {
+    chrome: "1",
+    firefox: "toolbar_____"
+  },
+  other: {
+    // FIXME: it seems that vivaldi doesn't have "other bookmarks"?
+    chrome: "2",
+    firefox: "unfiled_____"
+  },
+  mobile: {
+    chrome: null,
+    firefox: "mobile______"
+  },
+  menu: {
+    chrome: null,
+    firefox: "menu________"
   }
 }
 
-const getBookmark = async () => {
-  let tree = await browser.bookmarks.search({})
-  tree = tree.map(i => {
-    let order = []
-    let _this = i
-    while (true) {
-      order.unshift(_this.index)
-      if (folderPreserve.includes(_this.parentId)) break
-      _this = tree.filter(i => i.id === _this.parentId)[0]
-    }
-    i.order = order
-    return i
-  }).sort((a, b) => {
-    ;[a, b] = [a.order, b.order]
-    for (let i = 0; i < Math.min(a.length, b.length); i++) {
-      if (a[i] > b[i]) return 1
-      if (a[i] < b[i]) return -1
-    }
-    return a.length > b.length ? 1 : -1
-  })
-  console.log(tree)
-  let arr = []
-  for (let i = 0; i < tree.length; i++) {
-    let json = {
-      parentId: tree[i].parentId,
-      index: tree[i].index,
-      title: tree[i].title,
-      id: tree[i].id
-    }
-    if ('url' in tree[i]) json.url = tree[i].url
-    arr.push(json)
+let running = false;
+
+async function sync() {
+  if (running) {
+    scheduleSync();
+    return;
   }
-  return arr
+  running = true;
+  try {
+    await _sync();
+  } catch (e) {
+    console.error(e);
+  }
+  running = false;
 }
 
-const emptyBookmark = async () => {
-  let bm = await getBookmark()
-  for (let i = 0; i < bm.length; i++) {
-    if (!folderPreserve.includes(bm[i].parentId)) {
-      try {
-        if (bm[i].url) {
-          await browser.bookmarks.remove(bm[i].id)
-        } else {
-          await browser.bookmarks.removeTree(bm[i].id)
-        }
-      } catch (error) {}
-    }
+async function _sync() {
+  let {token, bookmarkData, gistId} = await browser.storage.local.get(['token', 'bookmarkData', 'gistId']);
+  if (!token) {
+    throw new Error("You are not logged in");
   }
-}
-
-const setBookmark = async bm => {
-  if (navigator.userAgent.match(/Vivaldi/)) { // Vivaldi没有"其他书签"
-    await new Promise(resolve => {
-      chrome.bookmarks.create({
-        parentId: '1',
-        title: chrome.i18n.getMessage('otherBookmarks')
-      }, result => {
-        folder['2'] = result.id
-        folder['unfiled_____'] = result.id
-        resolve()
-      })
-    })
+  if (!gistId) {
+    throw new Error("Gist ID is not set");
   }
-  for (let i of ['menu', 'mobile', 'tags']) {
-    await new Promise(resolve => {
-      chrome.bookmarks.create({
-        parentId: folder['2'],
-        title: chrome.i18n.getMessage(i + 'Bookmarks')
-      }, result => {
-        folder[i + '________'] = result.id
-        resolve()
-      })
-    })
-  }
-  for (let i = 0; i < bm.length; i++) {
-    if (bm[i].parentId === 'root________') continue
-
-    // 移除不接受的属性: id
-    let id = bm[i].id
-    delete bm[i].id
-
-    // 替换真正的parentId
-    bm[i].parentId = folder[bm[i].parentId]
-
-    bm[i].url = fixPlatformUrl(bm[i].url)
-
-    if (bm[i].url === 'data:') {
-      bm[i].type = 'separator'
-    }
-
-    let result = await browser.bookmarks.create(bm[i])
-    if (!bm[i].url) folder[id] = result.id
-  }
-}
-
-const fixPlatformUrl = url => {
-    if (url && url.match(/^chrome:/)) {
-      return url.replace(/^chrome:/, 'about:')
-    }
-    return url;
-}
-
-const getGistList = async () => {
-  let res = await window.fetch('https://api.github.com/gists', {
+  const rr = await fetch(`https://api.github.com/gists/${gistId}`, {
     method: 'GET',
     headers: {
-      'Authorization': 'token ' + token
-    }
+      Accept: "application/vnd.github+json",
+      Authorization: `token ${token}`
+    },
   })
-  let list = await res.json()
-  return list.filter(i => i.description === description)
+  const r = await rr.json();
+  if (r.truncated) {
+    throw new Error("Gist content is too large");
+  }
+  const remoteData = r.files['bookmark.json'] ? JSON.parse(r.files['bookmark.json'].content) : null;
+  if (remoteData && bookmarkData && remoteData.lastUpdate > bookmarkData.lastUpdate || remoteData && !bookmarkData) {
+    // mergeData(bookmarkData, remoteData);
+    await browser.storage.local.set({bookmarkData: remoteData});
+    await patchBookmark(remoteData);
+  } else if (!remoteData || bookmarkData.lastUpdate > remoteData.lastUpdate) {
+    await patchGist(bookmarkData, token, gistId);
+  }
 }
 
-const editGist = async (content, id) => {
-  let res = await window.fetch(`https://api.github.com/gists/${id}`, {
+async function patchGist(data, token, gistId) {
+  await fetch(`https://api.github.com/gists/${gistId}`, {
     method: 'PATCH',
     headers: {
-      'Authorization': 'token ' + token
+      Accept: "application/vnd.github+json",
+      Authorization: `token ${token}`
     },
     body: JSON.stringify({
-      description: description,
       files: {
-        bookmarks: {
-          content: content
+        'bookmark.json': {
+          content: JSON.stringify(data)
         }
       }
     })
-  })
-  let json = await res.json()
-  return json
+  });
 }
 
-const createGist = async content => {
-  let res = await window.fetch('https://api.github.com/gists', {
-    method: 'POST',
-    headers: {
-      'Authorization': 'token ' + token
-    },
-    body: JSON.stringify({
-      description: description,
-      files: {
-        bookmarks: {
-          content: content
-        }
+async function patchBookmark(remote) {
+  for (const baseKey in builtinIds) {
+    const parentId = builtinIds[baseKey][USER_AGENT];
+    if (!parentId) continue;
+    const localBookmarks = await browser.bookmarks.getSubTree(parentId);
+    await patchBookmarkFolder(localBookmarks, remote[baseKey], parentId);
+  }
+}
+
+function isSameBookmark(a, b) {
+  if (getBookmarkType(a) !== getBookmarkType(b)) return false;
+  if (a.title !== b.title) return false;
+  if (a.url !== b.url) return false;
+  return true;
+}
+
+function getBookmarkType(bookmark) {
+  if (bookmark.type) return bookmark.type;
+  if (bookmark.children) return 'folder';
+  if (bookmark.title.match(/^-+$/)) return 'separator';
+  return 'bookmark';
+}
+
+async function patchBookmarkFolder(local, remote, parentId) {
+  let i = 0, j = 0;
+  for (; i < local.length && j < remote.length;) {
+    if (isSameBookmark(local[i], remote[j])) {
+      if (local[i].children) {
+        await patchBookmarkFolder(local[i].children, remote[j].children, local[i].id);
       }
-    })
-  })
-  let json = await res.json()
-  return json
-}
-
-const getGistHistory = async id => {
-  let res = await window.fetch(`https://api.github.com/gists/${id}/commits`, {
-    method: 'GET',
-    headers: {
-      'Authorization': 'token ' + token
+      i++;
+      j++;
+      continue;
     }
-  })
-  let list = await res.json()
-  return list
-}
-
-const getGistContent = async (id, sha = undefined) => {
-  let res = await window.fetch(`https://api.github.com/gists/${id}${sha ? '/' + sha : ''}`, {
-    method: 'GET',
-    headers: {
-      'Authorization': 'token ' + token
+    // FIXME: should we use a more advanced algorithm to find reordered items?
+    if (isSameBookmark(local[i], remote[j + 1])) {
+      // remote[j] is new
+      const r = await createBookmark({
+        index: j,
+        parentId,
+        title: remote[j].title,
+        url: remote[j].url,
+        type: getBookmarkType(remote[j])
+      });
+      j++;
+      if (remote[j].children) {
+        await patchBookmarkFolder(r.children, remote[j].children, r.id);
+      }
+      continue;
     }
-  })
-  let json = await res.json()
-  let content = json.files['bookmarks'].content
-  content = JSON.parse(content)
-  return content
-}
-
-const onBookmarkChanged = (id, info) => {
-  if (monitorBookmark) {
-    browserActionSet({
-      text: '!!'
-    })
+    // local[i] is deleted
+    // remoteTree can also remove a single bookmark
+    await browser.bookmarks.removeTree(local[i].id);
+    i++;
+    continue;
+  }
+  for (;j < remote.length; j++) {
+    const r = await createBookmark({
+      index: j,
+      parentId,
+      title: remote[j].title,
+      url: remote[j].url,
+      type: getBookmarkType(remote[j])
+    });
+    if (remote[j].children) {
+      await patchBookmarkFolder(r.children, remote[j].children, r.id);
+    }
   }
 }
-
-browser.runtime.onMessage.addListener(async message => {
-  token = window.localStorage.token
-  description = window.localStorage.description || 'Bookmark Sync'
-  monitorBookmark = false
-  let messageNew = {}
-  if (message.type === 'upload') {
-    let list = await getGistList()
-    let bookmarks = await getBookmark()
-    bookmarks = JSON.stringify(bookmarks, null, 2)
-    if (list.length) {
-      await editGist(bookmarks, list[0].id)
-    } else {
-      await createGist(bookmarks)
-    }
-  } else if (message.type === 'download') {
-    let list = await getGistList()
-    if (list.length) {
-      let content = await getGistContent(list[0].id)
-      await emptyBookmark()
-      await setBookmark(content)
-    } else {
-      console.error('No')
-    }
-  } else if (message.type === 'sync') {
-    let list = await getGistList()
-    if (list.length) {
-      let local = await getBookmark()
-      let upsteam = await getGistContent(list[0].id)
-      upsteam = upsteam.filter(i => !local.some(j => i.id === j.id))
-      await setBookmark(upsteam)
-    } else {
-      console.error('No')
-    }
-  } else if (message.type === 'history') {
-    let list = await getGistList()
-    if (list.length) {
-      let history = await getGistHistory(list[0].id)
-      let html = '<ol>'
-      history.forEach(i => {
-        let id = i.url.split('/')[4]
-        html += `<li><a class="revision" name="${id}" title="${i.version}">${i.version.substr(0, 6)} ${i.committed_at}</a></li>`
-      })
-      html += '</ol>'
-      messageNew.target = '#historyDiv'
-      messageNew.html = html
-    } else {
-      console.error('No')
-    }
-  } else if (message.type === 'revision') {
-    let content = await getGistContent(message.id, message.sha)
-    await emptyBookmark()
-    await setBookmark(content)
-  }
-  if (messageNew) browser.runtime.sendMessage(messageNew)
-  browserActionReset()
-  monitorBookmark = true
-
-  let bm = await getBookmark()
-  let id = bm.filter(i => i.parentId === 'menu________' && i.title === 'Mozilla Firefox')
-  if (id.length) await browser.bookmarks.removeTree(id[0].id)
-})
-
+    
 browser.bookmarks.onCreated.addListener(onBookmarkChanged)
 browser.bookmarks.onRemoved.addListener(onBookmarkChanged)
 browser.bookmarks.onChanged.addListener(onBookmarkChanged)
 browser.bookmarks.onMoved.addListener(onBookmarkChanged)
+browser.storage.onChanged.addListener(changes => {
+  if (changes.token || changes.gistId) {
+    scheduleSync(0);
+  }
+});
+
+function onBookmarkChanged() {
+  scheduleSync();
+}
+
+async function createBookmark(bookmark) {
+  if (USER_AGENT === 'chrome') {
+    if (bookmark.type === 'folder') {
+      bookmark.url = null;
+    } else if (bookmark.type === 'separator') {
+      bookmark.title = '-----------------';
+      bookmark.url = 'about:blank';
+    }
+    delete bookmark.type;
+  } else if (bookmark.type === "separator") {
+    delete bookmark.title;
+    delete bookmark.url;
+  }
+  return await browser.bookmarks.create(bookmark);
+}
+
+function scheduleSync(delayInMinutes = 1) {
+  browser.alarms.create('sync', {
+    periodInMinutes: 10,
+    delayInMinutes
+  });
+}
+
+scheduleSync();
+
+browser.alarms.onAlarm.addListener(alarm => {
+  if (alarm.name === 'sync') {
+    sync().catch(e => console.error(e));
+  }
+});

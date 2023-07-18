@@ -12,19 +12,15 @@
   <div>
     GitHub Token:
     <input type="text" name="token">
-    <br> Description:
-    <input type="text" name="description" placeholder="Bookmark Sync">
+    <br> Gist ID:
+    <input type="text" name="gistId">
   </div>
   <div style="display: flex;">
-    <button class="button" name="upload">Upload</button>
-    <button class="button" name="download">Download</button>
-    <button class="button" name="history">History</button>
-    <button class="button" name="sync">Sync</button>
+    <button class="button" name="save" type="button">Save</button>
   </div>
-  <div id="historyDiv"></div>
+  <div class="status"></div>
 
   <script src="./js/browser-polyfill.js"></script>
   <script src="./js/options.js"></script>
-  <script src="./js/common.js"></script>
 </body>
 </html>

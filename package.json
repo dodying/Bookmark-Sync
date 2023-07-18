@@ -1,0 +1,34 @@
+{
+  "title": "Bookmark Sync",
+  "name": "bookmark-sync",
+  "version": "0.3.0",
+  "description": "Sync bookmarks between browsers",
+  "license": "MIT",
+  "scripts": {
+    "lint": "eslint --ext .js,.mjs . --cache",
+    "test": "npm run lint && web-ext lint",
+    "start": "web-ext run",
+    "build": "sync-version src/static/manifest.json && shx rm -rf build/* && rollup -c",
+    "build-locales": "tx pull -a --use-git-timestamps && webext-tx-fix -s src/static",
+    "build-artifact": "shx rm -rf web-ext-artifacts/* && web-ext build --ignore-files **/*.js.map",
+    "preversion": "npm test",
+    "version": "npm run build && git add .",
+    "postversion": "git push --follow-tags && npm run build-artifact && git archive -o latest.zip HEAD",
+    "server": "node test/server.js",
+    "changelog": "shx cat README.md | mkcat | mkql \"[content=Changelog] + ul > :first-child > *\" | mkout"
+  },
+  "eslintIgnore": [
+    "build",
+    "src/js/browser-polyfill.js"
+  ],
+  "devDependencies": {
+    "eslint": "^8.34.0",
+    "shx": "^0.3.4",
+    "sync-version": "^1.0.1",
+    "web-ext": "^7.5.0"
+  },
+  "repository": "eight04/bookmark-sync",
+  "private": true,
+  "dependencies": {
+  }
+}

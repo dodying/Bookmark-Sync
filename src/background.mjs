@@ -1,4 +1,5 @@
-/* eslint-env webextensions */
+import browser from "webextension-polyfill";
+
 const USER_AGENT = navigator.userAgent.match(/Firefox/) ? "firefox" : "chrome";
 
 const builtinIds = {
@@ -26,6 +27,7 @@ const builtinIds = {
 }
 
 let running = false;
+let bookmarkChanged = false;
 
 async function sync() {
   if (running) {
@@ -37,18 +39,26 @@ async function sync() {
     await _sync();
   } catch (e) {
     console.error(e);
+    await delay(5000)
   }
   running = false;
 }
 
-async function _sync() {
-  let {token, lastUpdate, gistId} = await browser.storage.local.get(['token', 'lastUpdate', 'gistId']);
-  if (!token) {
-    throw new Error("You are not logged in");
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function compareData(a, b) {
+  for (const key in builtinIds) {
+    if (!builtinIds[key][USER_AGENT]) continue;
+    if (JSON.stringify(a[key]) !== JSON.stringify(b[key])) {
+      return 1;
+    }
   }
-  if (!gistId) {
-    throw new Error("Gist ID is not set");
-  }
+  return 0;
+}
+
+async function getRemoteData(token, gistId) {
   const rr = await fetch(`https://api.github.com/gists/${gistId}`, {
     method: 'GET',
     headers: {
@@ -60,22 +70,55 @@ async function _sync() {
   if (r.truncated) {
     throw new Error("Gist content is too large");
   }
-  const remoteData = r.files['bookmark.json'] ? JSON.parse(r.files['bookmark.json'].content) : null;
-  if (remoteData && (remoteData.lastUpdate > lastUpdate || !lastUpdate)) {
-    await patchBookmark(remoteData);
-    await browser.storage.local.set({lastUpdate: remoteData.lastUpdate});
-  } else if (!remoteData || lastUpdate > remoteData.lastUpdate) {
-    if (!lastUpdate) {
-      lastUpdate = Date.now();
-      await browser.storage.local.set({lastUpdate});
-    }
-    await patchGist(await getBookmarkData(lastUpdate), token, gistId);
-  }
+  return r.files['bookmark.json'] ? JSON.parse(r.files['bookmark.json'].content) : null;
 }
 
-async function getBookmarkData(lastUpdate) {
+async function _sync() {
+  console.log(`sync start, bookmarkChanged: ${bookmarkChanged}`);
+  let {token, bookmarkData, gistId} = await browser.storage.local.get(['token', 'bookmarkData', 'gistId']);
+  if (!token || !gistId) {
+    console.log("not login");
+    return;
+  }
+  const remoteData = await getRemoteData(token, gistId);
+  console.log("remoteData: ", remoteData);
+  if (remoteData) {
+    if (!bookmarkData || bookmarkData.lastUpdate < remoteData.lastUpdate) {
+      console.log("patch local bookmark");
+      await patchBookmark(remoteData);
+      await browser.storage.local.set({bookmarkData: remoteData});
+      bookmarkData = remoteData;
+    } else if (bookmarkData && bookmarkData.lastUpdate > remoteData.lastUpdate) {
+      console.log("patch gist (local is newer, the previous push failed?)");
+      await patchGist(bookmarkData, token, gistId);
+    }
+  }
+  if (!bookmarkChanged && remoteData) {
+    console.log("no need to push");
+    return;
+  }
+  bookmarkChanged = false;
+  console.log("get local bookmark")
+  const newBookmarkData = await getBookmarkData();
+  if (bookmarkData && compareData(bookmarkData, newBookmarkData) === 0) {
+    console.log("no change");
+    return;
+  }
+  if (!bookmarkData) {
+    console.log("remote is empty, push local bookmarks");
+    bookmarkData = newBookmarkData;
+  } else {
+    console.log("merge local and remote bookmarks");
+    Object.assign(bookmarkData, newBookmarkData);
+  }
+  console.log("patch gist");
+  await patchGist(bookmarkData, token, gistId);
+  await browser.storage.local.set({bookmarkData});
+}
+
+async function getBookmarkData() {
   const data = {
-    lastUpdate,
+    lastUpdate: Date.now(),
   };
   for (const key in builtinIds) {
     const parentId = builtinIds[key][USER_AGENT];
@@ -143,11 +186,12 @@ function getBookmarkType(bookmark) {
   return 'bookmark';
 }
 
-async function patchBookmarkFolder(local, remote, parentId) {
+// NOTE: bookmark.children is often undefined in Chrome when the folder is empty
+async function patchBookmarkFolder(local = [], remote, parentId) {
   let i = 0, j = 0;
   for (; i < local.length && j < remote.length;) {
     if (isSameBookmark(local[i], remote[j])) {
-      if (local[i].children) {
+      if (remote[j].children) {
         await patchBookmarkFolder(local[i].children, remote[j].children, local[i].id);
       }
       i++;
@@ -166,7 +210,7 @@ async function patchBookmarkFolder(local, remote, parentId) {
       });
       j++;
       if (remote[j].children) {
-        await patchBookmarkFolder(r.children || [], remote[j].children, r.id);
+        await patchBookmarkFolder(r.children, remote[j].children, r.id);
       }
       continue;
     }
@@ -196,15 +240,18 @@ browser.bookmarks.onChanged.addListener(onBookmarkChanged)
 browser.bookmarks.onMoved.addListener(onBookmarkChanged)
 browser.storage.onChanged.addListener(changes => {
   if (changes.token || changes.gistId) {
-    scheduleSync(0);
+    // FIXME: should we clear bookmarkData when token is changed?
+    console.log("token or gistId changed")
+    scheduleSync();
   }
 });
 
+
 async function onBookmarkChanged() {
-  // FIXME: need a more reliable way to determine if the user is editing bookmarks
-  if (!running) {
-    await browser.storage.local.set({lastUpdate: Date.now()});
-  }
+  console.log("onBookmarkChanged")
+  const {token, gistId} = await browser.storage.local.get(['token', 'gistId']);
+  if (!token || !gistId) return;
+  bookmarkChanged = true;
   scheduleSync();
 }
 
@@ -227,6 +274,7 @@ async function createBookmark(bookmark) {
 function scheduleSync(delayInMinutes = 1) {
   browser.alarms.create('sync', {
     periodInMinutes: 10,
+    // NOTE: Firefox doesn't support delayInMinutes: 0?
     delayInMinutes
   });
 }
@@ -234,6 +282,7 @@ function scheduleSync(delayInMinutes = 1) {
 scheduleSync();
 
 browser.alarms.onAlarm.addListener(alarm => {
+  console.log("alarm", alarm)
   if (alarm.name === 'sync') {
     sync().catch(e => console.error(e));
   }

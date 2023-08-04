@@ -1,7 +1,7 @@
 /* eslint-env node */
 
 module.exports = {
-	sourceDir: "src",
+	sourceDir: "build",
 	build: {
 		overwriteDest: true
 	}

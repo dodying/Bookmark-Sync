@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "homepage_url": "https://github.com/dodying/Bookmark-Sync",
   "name": "__MSG_extName__",
-  "version": "0.0.3",
+  "version": "0.3.0",
   "default_locale": "en",
   "description": "__MSG_extDesc__",
   "icons": {
@@ -11,8 +11,6 @@
   },
   "background": {
     "scripts": [
-      "js/browser-polyfill.js",
-      "js/background.js"
     ],
     "persistent": true
   },

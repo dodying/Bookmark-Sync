@@ -10,7 +10,7 @@ Inspired by [shanalikhan/code-settings-sync](https://github.com/shanalikhan/code
 2. Create a [new gist](https://gist.github.com/) with a file named `bookmark.json` and the content `null`.
 3. Put in the token and gist ID in the option page.
 
-### Usage
+### Details
 
 Sync starts automatically after settings is saved, or when bookmark changes.
 
@@ -23,6 +23,8 @@ Otherwise it checks the `lastUdpate` information to decide to push or pull.
 Note that there is no "merge" strategy in this extension. Either all local bookmarks or all remote bookmarks are overwritten after sync.
 
 ### Cross browser compatibility
+
+#### Root folders
 
 Firefox has four root folders:
 
@@ -37,6 +39,10 @@ Chrome has only two:
 * other
 
 When pushing the data, all folders will be pushed to gist. When pulling, only supported folders will be pulled. Therefore bookmarks from Firefox's menu/mobile won't be synced to Chrome. (They still sync between Firefox browsers.)
+
+#### Import issue in Firefox
+
+There is no way to detect bookmark imports in Firefox. You have to make some changes (e.g. reorder a bookmark) to trigger syncs after importing/recovered from backup.
 
 ### Todos
 

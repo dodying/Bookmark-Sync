@@ -251,6 +251,8 @@ async function onBookmarkChanged() {
   console.log("onBookmarkChanged")
   const {token, gistId} = await browser.storage.local.get(['token', 'gistId']);
   if (!token || !gistId) return;
+  // FIXME: we will loose the bookmarkChanged state if the browser is closed before the sync
+  // should we save it into storage?
   bookmarkChanged = true;
   scheduleSync();
 }

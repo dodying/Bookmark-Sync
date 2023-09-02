@@ -221,6 +221,9 @@ async function patchBookmarkFolder(local = [], remote, parentId) {
     i++;
     continue;
   }
+  for (;i < local.length; i++) {
+    await browser.bookmarks.removeTree(local[i].id);
+  }
   for (;j < remote.length; j++) {
     const r = await createBookmark({
       index: j,

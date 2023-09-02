@@ -118,6 +118,7 @@ async function _sync() {
 
 async function getBookmarkData() {
   const data = {
+    userAgent: navigator.userAgent,
     lastUpdate: Date.now(),
   };
   for (const key in builtinIds) {

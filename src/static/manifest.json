@@ -1,0 +1,31 @@
+{
+  "manifest_version": 2,
+  "homepage_url": "https://github.com/eight04/Bookmark-Sync",
+  "name": "__MSG_extName__",
+  "version": "0.3.0",
+  "default_locale": "en",
+  "description": "__MSG_extDesc__",
+  "icons": {
+    "16": "images/logo-16.png",
+    "48": "images/logo-48.png"
+  },
+  "background": {
+    "scripts": [
+    ],
+    "persistent": true
+  },
+  "options_ui": {
+    "open_in_tab": false,
+    "page": "options.html"
+  },
+  "permissions": [
+    "bookmarks",
+    "storage",
+    "alarms"
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "bookmark-sync@eight04.blogspot.com"
+    }
+  }
+}
